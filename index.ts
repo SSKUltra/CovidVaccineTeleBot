@@ -1,4 +1,4 @@
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf, Markup, session } = require('telegraf');
 const axios = require("axios");
 const fs = require("fs");
 require('dotenv').config()
@@ -9,6 +9,9 @@ const host = "https://cdn-api.co-vin.in/api/v2";
 bot.start((ctx) => {
     fetchState(ctx);
 })
+
+
+bot.use(session())
 
 const fetchDistrict = async (ctx, stateId) => {
     try {
@@ -67,20 +70,17 @@ const getAgeGroup = (ctx) => {
 
     bot.hears('18 to 45', ctx => {
         bot.telegram.sendMessage(ctx.chat.id, 'Selected age group is 18 to 45', removeKeyboard);
-        const userData = generateUserData(ctx.from.username, undefined, "lowerAge");
-        jsonAddUser(ctx.from.id, userData);
+        jsonAddDistrict(ctx, "lowerAge");
     })
     
     bot.hears('45+', ctx => {
         bot.telegram.sendMessage(ctx.chat.id, 'Selected age group is 45+', removeKeyboard);
-        const userData = generateUserData(ctx.from.username, undefined, "UpperAge");
-        jsonAddUser(ctx.from.id, userData);
+        jsonAddDistrict(ctx, "upperAge");
     })
     
     bot.hears('Both', ctx => {
         bot.telegram.sendMessage(ctx.chat.id, 'Selected age group is both 18 to 45 and 45+', removeKeyboard);
-        const userData = generateUserData(ctx.from.username, undefined, "BothAge");
-        jsonAddUser(ctx.from.id, userData);
+        jsonAddDistrict(ctx, "bothAge");
     })  
 }
 
@@ -95,8 +95,8 @@ const getUserDistrict = (ctx, districts) => {
     districts.forEach(district => {
         bot.hears(district.district_name, ctx => {
             console.log(`getUserDistrict: ${district.district_id}`);
-            const userData = generateUserData(ctx.from.username, district.district_id, '');
-            jsonAddUser(ctx.from.id, userData);
+            ctx.session = { districtId: district.district_id };
+            // jsonAddUser(ctx.from.id, userData);
             getAgeGroup(ctx);
         })
     });
@@ -123,25 +123,73 @@ const removeKeyboard = {
     }
 }
 
-const jsonAddUser = (id, data) => {
+const fetchDistrictData = async (ctx, ageGroup, districtId) => {
+    var now = new Date();
+    var dd = String(now.getDate()).padStart(2, '0');
+    var mm = String(now.getMonth() + 1).padStart(2, '0'); //January is 0!
+    var yyyy = now.getFullYear();
+    const todayDateFormat = dd + '-' + mm + '-' + yyyy;
+
+    bot.telegram.sendMessage(ctx.chat.id, 'Here are all the available centers in your district:')
     try {
-        const fileUserDataResponse = fs.readFileSync('users.json', { encoding: 'utf8' });
-        const fileUserData = JSON.parse(fileUserDataResponse);
+        await axios.get(`${host}/appointment/sessions/public/findByDistrict?district_id=${districtId}&date=${todayDateFormat}`)
+            .then((response) => {
+                response.data.sessions.map((session) => {
+                    if ((ageGroup === "upperAge" && session.min_age_limit === 45) || 
+                        (ageGroup === "lowerAge" && session.min_age_limit === 18) || 
+                        (ageGroup === "bothAge")) {
+                        bot.telegram.sendMessage(
+                            ctx.chat.id,
+                            `\nName : ${session.name} \n` +
+                            `Minimum age : ${session.min_age_limit} \n` +
+                            `Available capacity : ${session.available_capacity} \n` + 
+                            `Block name : ${session.block_name} \n` +
+                            `Pin code : ${session.pincode} \n` +
+                            `Fee type : ${session.fee_type} \n` + 
+                            `Fee : ${session.fee} \n` + 
+                            `Vaccine type : ${session.vaccine} \n` + 
+                            `Date : ${session.date} \n` +
+                            `Slots : ${session.slots.map((slot) => `\n\t -> ${slot}`)} \n`
+                        ) 
+                    }
+                })
 
-        if (id in fileUserData) {
-            fileUserData[id].districtId.forEach((districtId) => {
-                if(data.districtId.indexOf(districtId) === -1) {
-                    data.districtId.push(districtId)}
+                if (response.data.sessions.length === 0 || 
+                    (ageGroup === "upperAge" && !response.data.sessions.find((session) => session.min_age_limit === 45)) ||
+                    (ageGroup === "lowerAge" && !response.data.sessions.find((session) => session.min_age_limit === 15))) {
+                    bot.telegram.sendMessage(ctx.chat.id, "There was no vaccination centers available for the parameters selected by you. I will update you once there are any changes in the availability (This bot is still in testing, please don't rely only on this bot for updates).");
                 }
-            )
-        } 
-
-        const newUserData = { ...fileUserData, [id]: { ...data } }
-
-        fs.writeFileSync('users.json', JSON.stringify(newUserData));
-    }
-    catch(err) {
+            })
+    } catch (err) {
         console.log(err)
+    }
+}
+
+const jsonAddDistrict = (ctx, ageGroup) => {
+    try {
+        const fileDistrictDataResponse = fs.readFileSync('districts.json', { encoding: 'utf8' });
+        const fileDistrictData = JSON.parse(fileDistrictDataResponse);
+
+        const { districtId } = ctx.session;
+        const userId = ctx.from.id;
+        const newDistrictData = { ...fileDistrictData }
+        if (!(districtId in newDistrictData)) {
+            newDistrictData[districtId] = {
+                lowerAge : [],
+                upperAge : [],
+                bothAge : [],
+            }
+        };
+
+        if(newDistrictData[districtId][ageGroup].indexOf(userId) === -1) {
+            newDistrictData[districtId][ageGroup].push(userId);
+        }
+
+        fs.writeFileSync('districts.json', JSON.stringify(newDistrictData));
+        fetchDistrictData(ctx, ageGroup, districtId);
+    }
+    catch (err) {
+        console.log(err);
     }
 }
 
