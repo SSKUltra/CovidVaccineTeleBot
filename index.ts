@@ -13,12 +13,29 @@ const emoji = {
 const districtFileName = 'districts.json';
 const districtDataFileName = 'districtsData.json';
 
+const botCommandList = [
+    {
+        command: 'add',
+        description: 'Add a district and age group to get notified.'
+    },
+    {
+        command: 'reset',
+        description: 'Remove all registered districts.'
+    }
+]
+
 bot.start((ctx) => {
     fetchState(ctx);
 })
 
+bot.telegram.setMyCommands(botCommandList);
+
 bot.hears('/add', (ctx) => {
     fetchState(ctx);
+})
+
+bot.hears('/reset', (ctx) => {
+    removeUserFromAllDistricts(ctx.from.id);
 })
 
 bot.use(session())
@@ -192,6 +209,10 @@ const setDistrictDataByIdToFile = (districtId, data) => {
     fs.writeFileSync(districtDataFileName, JSON.stringify(newDistrictData))
 }
 
+const setDistritUserDataToFile = (newDistrictUserData) => {
+    fs.writeFileSync(districtFileName, JSON.stringify(newDistrictUserData))
+}
+
 const fetchDistrictData = async (ctx, ageGroup, districtId) => {
     const districtDataById = getDistrictDataByIdFromFile(districtId);
     if (districtDataById) {
@@ -240,6 +261,11 @@ const jsonAddDistrict = (ctx, ageGroup) => {
     catch (err) {
         console.log(err);
     }
+}
+
+const getUsersForAllDistrict = () => {
+    const fileDistrictData = fs.readFileSync(districtFileName, { encoding: 'utf8' });
+    return JSON.parse(fileDistrictData);
 }
 
 const getUsersForDistrict = (districtId) => {
@@ -314,5 +340,21 @@ const poll = async ({ fn, interval }) => {
 };
 
 poll({fn: getAllDistrictData, interval: POLLING_INTERVAL});
+
+const removeUserFromAllDistricts = (userId) => {
+    const districtData = getUsersForAllDistrict();
+    const newDistrictData = { ...districtData };
+    Object.keys(districtData).forEach((districtId) => {
+        Object.keys(districtData[districtId]).forEach((ageGroup) => {
+            const index = newDistrictData[districtId][ageGroup].indexOf(userId);
+            if (index > -1) {
+                newDistrictData[districtId][ageGroup].splice(index, 1)
+            }
+        })
+    })
+
+    console.log(`Removing user : ${userId} from all districts`);
+    setDistritUserDataToFile(newDistrictData);
+}
 
 bot.launch()
