@@ -19,7 +19,7 @@ const userFileName = 'users.json';
 const districtFileName = 'districts.json';
 const districtDataFileName = 'districtsData.json';
 
-const POLLING_INTERVAL = 30000;
+const POLLING_INTERVAL = 60000;
 const BUCKET_SIZE = 5;
 const BACKOFF_MULTIPLIER = 2000;
 
@@ -214,11 +214,9 @@ const generateCenterMessage = (centerData) =>
     `<b>Available capacity : ${centerData.available_capacity}</b> ${centerData.available_capacity > 0 ? emoji.Check : emoji.Cross} \n` + 
     `Block name : ${centerData.block_name} \n` +
     `Pin code : ${centerData.pincode} \n` +
-    `Fee type : ${centerData.fee_type} \n` + 
     `Fee : ${centerData.fee} ${centerData.fee > 0 ? emoji.Cash : emoji.Free}\n` + 
     `Vaccine type : ${centerData.vaccine} \n` + 
-    `Date : ${centerData.date} \n` +
-    `Slots : <code>${centerData.slots.map((slot) => `\n\t ${emoji.Clock} ${slot}`)}</code> \n`
+    `Date : ${centerData.date} \n`
 
 const getDistrictDataFromFile = () => {
     const districtsFromFile = fs.readFileSync(districtDataFileName, { encoding: 'utf8' });
