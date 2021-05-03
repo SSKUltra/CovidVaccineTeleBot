@@ -7,9 +7,18 @@ const bot = new Telegraf(process.env.TOKEN);
 const host = "https://cdn-api.co-vin.in/api/v2";
 
 bot.start((ctx) => {
+    bot.telegram.sendMessage(ctx.chat.id, `Hello ${ctx.chat.first_name} welcome to CovidIndiaVaccineBot, I will send you details about current available vaccination slots in your area and notify you when there are changes in the availability of those slots.`);
     fetchState(ctx);
 })
-
+            
+bot.hears('/help', ctx => {
+    bot.telegram.sendMessage(ctx.chat.id, `Hello ${ctx.chat.first_name}, here are the list of commands available for you to use:\n /help -> Gets help.\n /getcurrentdata -> Gets current vaccine availability for the preferences set by you.\n /addregion -> Allows you to additional regions.`);
+})
+            
+bot.hears('/addregion', ctx => {
+    bot.telegram.sendMessage(ctx.chat.id, "Please select the details of the region to be added:");
+    fetchState(ctx);
+})
 
 bot.use(session())
 
@@ -66,7 +75,7 @@ const generateUserData = (userName, districtId, ageGroup) => {
 }
 
 const getAgeGroup = (ctx) => {
-    bot.telegram.sendMessage(ctx.chat.id, 'Select the age group', requestAgeGroup)
+    bot.telegram.sendMessage(ctx.chat.id, 'Select the age group to check for vaccine availability', requestAgeGroup)
 
     bot.hears('18 to 45', ctx => {
         bot.telegram.sendMessage(ctx.chat.id, 'Selected age group is 18 to 45', removeKeyboard);
@@ -130,7 +139,7 @@ const fetchDistrictData = async (ctx, ageGroup, districtId) => {
     var yyyy = now.getFullYear();
     const todayDateFormat = dd + '-' + mm + '-' + yyyy;
 
-    bot.telegram.sendMessage(ctx.chat.id, 'Here are all the available centers in your district:')
+    bot.telegram.sendMessage(ctx.chat.id, 'Here are all the available centers in the district selected by you:')
     try {
         await axios.get(`${host}/appointment/sessions/public/findByDistrict?district_id=${districtId}&date=${todayDateFormat}`)
             .then((response) => {
@@ -186,7 +195,12 @@ const jsonAddDistrict = (ctx, ageGroup) => {
         }
 
         fs.writeFileSync('districts.json', JSON.stringify(newDistrictData));
-        fetchDistrictData(ctx, ageGroup, districtId);
+        
+        bot.telegram.sendMessage(ctx.chat.id, 'Thank you for adding your preferences. I will notify you when a vaccination slot is available in your area. If you wish to see all the current available slots for your area, use the /getcurrentdata command. To get help use the /help command.');
+                
+        bot.hears('/getcurrentdata', ctx => {
+            fetchDistrictData(ctx, ageGroup, districtId);
+        })
     }
     catch (err) {
         console.log(err);
