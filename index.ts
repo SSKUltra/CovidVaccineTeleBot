@@ -3,8 +3,10 @@ const axios = require("axios");
 const fs = require("fs");
 require('dotenv').config()
 
-const bot = new Telegraf(process.env.TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN);
 const host = "https://cdn-api.co-vin.in/api/v2";
+
+const filePath = process.env.BOT_DB_PATH
 
 const emoji = {
     Cash: '\u{1F4B5}',
@@ -15,9 +17,9 @@ const emoji = {
     Cross: '\u{274C}',
 }
 
-const userFileName = 'users.json';
-const districtFileName = 'districts.json';
-const districtDataFileName = 'districtsData.json';
+const userFileName = filePath + 'users.json';
+const districtFileName = filePath + 'districts.json';
+const districtDataFileName = filePath + 'districtsData.json';
 
 const POLLING_INTERVAL = 60000;
 const BUCKET_SIZE = 5;
@@ -421,3 +423,6 @@ const removeUserFromAllDistricts = (userId) => {
 }
 
 bot.launch()
+
+process.once('SIGINT', () => bot.stop('SIGINT'))
+process.once('SIGTERM', () => bot.stop('SIGTERM'))
