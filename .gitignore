@@ -106,3 +106,4 @@ dist
 # custom
 deploy-bot.yaml
 db/
+deploy-script.txt

@@ -21,9 +21,10 @@ const userFileName = filePath + 'users.json';
 const districtFileName = filePath + 'districts.json';
 const districtDataFileName = filePath + 'districtsData.json';
 
-const POLLING_INTERVAL = 60000;
-const BUCKET_SIZE = 5;
-const BACKOFF_MULTIPLIER = 2000;
+const POLLING_INTERVAL = parseInt(process.env.POLLING_INTERVAL);
+const BUCKET_SIZE = parseInt(process.env.BUCKET_SIZE);
+const BACKOFF_MULTIPLIER = parseInt(process.env.BACKOFF_MULTIPLIER);
+const API_BUCKET_SIZE = parseInt(process.env.API_BUCKET_SIZE);
 
 const botCommandList = [
     {
@@ -347,11 +348,13 @@ const checkForUpdates = (districtId, oldData, newData) => {
     newData.sessions.forEach((newCenter) => {
         const { center_id } = newCenter;
         const oldCenter = oldData.sessions.find((oldCenter) => oldCenter.center_id === center_id)
-        if ((oldCenter && (
-                (oldCenter.available_capacity === 0 && newCenter.available_capacity > 0) || 
+        if ((newCenter.available_capacity >= 10) && 
+            ((oldCenter && (
+                (oldCenter.available_capacity === 0) || 
                 oldCenter.min_age_limit !== newCenter.min_age_limit || 
                 oldCenter.date !== newCenter.date
             )) || !oldCenter
+            )
         ) {
             updateData = true;
             if (districtUserData) {
@@ -367,7 +370,11 @@ const checkForUpdates = (districtId, oldData, newData) => {
                 usersToUpdate.forEach((userId, idx) => {
                     setTimeout(() => {
                         console.log(`Sending message to user : ${userId} for center : ${center_id}`)
-                        bot.telegram.sendMessage(userId, generateCenterMessage(newCenter), replyParseMode)
+                        try {
+                            bot.telegram.sendMessage(userId, generateCenterMessage(newCenter), replyParseMode)
+                        } catch (e) {
+                            console.log(e.message)
+                        }
                     }, Math.floor(idx/BUCKET_SIZE) * BACKOFF_MULTIPLIER) 
                 })
             }
@@ -379,18 +386,23 @@ const checkForUpdates = (districtId, oldData, newData) => {
 
 const getAllDistrictData = () => {
     const districtData = getDistrictDataFromFile();
+    const API_BACKOFF_MULTIPLIER_NEW = POLLING_INTERVAL/(Object.keys(districtData).length/API_BUCKET_SIZE);
 
-    Object.keys(districtData).forEach(async (districtId) => {
+    Object.keys(districtData).forEach(async (districtId, idx) => {
         const todayDateFormat = getCurrentDate();
-        axios.get(`${host}/appointment/sessions/public/findByDistrict?district_id=${districtId}&date=${todayDateFormat}`)
-            .then((response) => {
-                const updateData = checkForUpdates(districtId, districtData[districtId], response.data)
-                if (updateData) {
-                    console.log(`Updating district data file for district : ${districtId}`)
-                    setDistrictDataByIdToFile(districtId, response.data);
-                }
-            })
-            .catch((e) => console.log(e))
+        setTimeout(() => {
+            console.log(`Fetching data for district : ${districtId}`);
+            axios.get(`${host}/appointment/sessions/public/findByDistrict?district_id=${districtId}&date=${todayDateFormat}`)
+                .then((response) => {
+                    const updateData = checkForUpdates(districtId, districtData[districtId], response.data)
+                    if (updateData) {
+                        console.log(`Updating district data file for district : ${districtId}`)
+                        setDistrictDataByIdToFile(districtId, response.data);
+                    }
+                })
+                .catch((e) => console.log(e))},
+            Math.floor(idx/API_BUCKET_SIZE) * API_BACKOFF_MULTIPLIER_NEW
+        );
     })
 }
 
@@ -424,5 +436,5 @@ const removeUserFromAllDistricts = (userId) => {
 
 bot.launch()
 
-process.once('SIGINT', () => bot.stop('SIGINT'))
-process.once('SIGTERM', () => bot.stop('SIGTERM'))
+// process.once('SIGINT', () => bot.stop('SIGINT'))
+// process.once('SIGTERM', () => bot.stop('SIGTERM'))
