@@ -28,7 +28,11 @@ const BUCKET_SIZE = parseInt(process.env.BUCKET_SIZE);
 const BACKOFF_MULTIPLIER = parseInt(process.env.BACKOFF_MULTIPLIER);
 const API_BUCKET_SIZE = parseInt(process.env.API_BUCKET_SIZE);
 
-const botCommandList = [
+const botCommandList = [  
+    {
+        command: 'help',
+        description: 'Gets Help.'
+    },
     {
         command: 'add',
         description: 'Add a district and age group to get notified.'
@@ -44,12 +48,16 @@ const botCommandList = [
 ]
 
 bot.start((ctx) => { 
-    bot.telegram.sendMessage(ctx.chat.id, `Hello ${ctx.chat.first_name} welcome to CovidIndiaVaccineBot, I will send you details about current available vaccination slots in your area and notify you when there are changes in the availability of those slots.`);
+    bot.telegram.sendMessage(ctx.chat.id, `Hello ${ctx.chat.first_name} welcome to CovidIndiaVaccineBot, I will send you details about current available vaccination slots in your area and notify you when there are changes in the availability of those slots. If you need any help click on /help.`);
     fetchState(ctx);
     jsonAddUserData(ctx.from.id, ctx.chat.first_name);
 })
 
 bot.telegram.setMyCommands(botCommandList);
+
+bot.hears('/help', ctx => {
+    bot.telegram.sendMessage(ctx.chat.id, `Hello ${ctx.chat.first_name}, here are the list of commands available for you to use:\n /help -> Gets help.\n /add -> Add a district and age group to get notified.\n /reset -> Remove all registered districts.\n /stop -> Stop receiving updates from me.`);
+})
 
 bot.hears('/add', (ctx) => {
     fetchState(ctx);
