@@ -5,6 +5,8 @@ require('dotenv').config()
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const host = "https://cdn-api.co-vin.in/api/v2";
+const vaccinationLink = "https://selfregistration.cowin.gov.in"
+axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36'
 
 const filePath = process.env.BOT_DB_PATH
 
@@ -219,7 +221,8 @@ const generateCenterMessage = (centerData) =>
     `Pin code : ${centerData.pincode} \n` +
     `Fee : ${centerData.fee} ${centerData.fee > 0 ? emoji.Cash : emoji.Free}\n` + 
     `Vaccine type : ${centerData.vaccine} \n` + 
-    `Date : ${centerData.date} \n`
+    `Date : ${centerData.date} \n` + 
+    `CoWin : ${vaccinationLink} \n`
 
 const getDistrictDataFromFile = () => {
     const districtsFromFile = fs.readFileSync(districtDataFileName, { encoding: 'utf8' });
@@ -347,7 +350,7 @@ const checkForUpdates = (districtId, oldData, newData) => {
 
     newData.sessions.forEach((newCenter) => {
         const { center_id } = newCenter;
-        const oldCenter = oldData.sessions.find((oldCenter) => oldCenter.center_id === center_id)
+        const oldCenter = oldData.sessions?.find((oldCenter) => oldCenter.center_id === center_id)
         if ((newCenter.available_capacity >= 10) && 
             ((oldCenter && (
                 (oldCenter.available_capacity === 0) || 
